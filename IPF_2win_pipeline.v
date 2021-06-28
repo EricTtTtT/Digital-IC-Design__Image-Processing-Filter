@@ -18,209 +18,201 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
     output reg [13:0] dout_addr;
 //===========IO====================
 
-reg [7:0] din_po, din_wo, dout_nxt, din_po_temp, pix, pix_band, pix_band_pip;
-reg [7:0] border, border_pip;
-reg [7:0] pix_pip;
-reg [7:0] din_temp, din_temp_nxt;
-reg signed [8:0] din_po_add, din_wo_add;
-reg [7:0] din_off, din_off_nxt;
 
-reg [4:0] low_bound, up_bound;
-reg [3:0] offset_po, offset_po_nxt;
-reg [3:0] offset_wo, offset_wo_nxt;
-reg [3:0] posi_a, posi_c, posi_b;
-reg [7:0] a,b,c;
-reg [7:0] c_pip;
-reg [7:0] a_nxt,b_nxt,c_nxt;
+//============ reg/wire declaration ===================
+    parameter LCU_SIZE = 16;    // TODO: parameterized
+    parameter logSIZE = 4;
 
-reg [8:0] mid;
+    integer i ;
 
-reg [2:0] t_lcu_x, t_lcu_x_nxt, t_lcu_x_pip;
-reg [2:0] t_lcu_y, t_lcu_y_nxt, t_lcu_y_pip;
-reg t_ipf_wo_class, t_ipf_wo_class_nxt;
-reg [4:0] t_ipf_band_pos, t_ipf_band_pos_nxt, t_ipf_band_pos_pip;
-reg [15:0] t_ipf_offset, t_ipf_offset_nxt;
+    //======== data I/O ===============
+        reg [7:0] din_po, din_wo, dout_nxt, din_po_temp;
+        reg [13:0] dout_addr_nxt;
+        reg [7:0] pix, pix_pip, pix_band, pix_band_pip;
+        reg [7:0] border, border_pip;
+        reg [7:0] din_buffer, din_buffer_nxt;
+        reg signed [8:0] din_po_add, din_wo_add;
+        reg [7:0] din_off, din_off_nxt;
 
-reg [13:0] dout_addr_nxt;
-reg seq, seq_nxt, seq_pip;
-reg finish_nxt;
-wire end_lcu;
-wire end_lcu_pip;
-wire end_img;
+    //======== control signals ========
+        reg [3:0] col, col_nxt, t_col, t_col_pip; //col length = 16, 32, 64
+        reg [3:0] row, row_nxt, t_row, t_row_pip;
+        reg [3:0] a_col, b_col;
+        reg seq, seq_nxt;
+        reg finish_nxt;
 
-//============= extension ===================
-reg [7:0] window0[0:15]; //window size = 16, 32, 64
-reg [7:0] window1[0:15];
-reg [7:0] window0_nxt[0:15];
-reg [7:0] window1_nxt[0:15];
-reg [3:0] col, col_nxt, t_col, t_col_pip; //col length = 16, 32, 64
-reg [3:0] row, row_nxt, t_row, t_row_pip;
+        wire end_lcu;
+        wire end_lcu_pip;
+        wire end_img;
 
-assign  end_lcu = (t_row==4'd15 & t_col==4'd15); //col, row = 16, 32, 64
-assign  end_lcu_pip = (t_row_pip==4'd15 & t_col_pip==4'd15); //col, row = 16, 32, 64
-assign  end_img = (!in_en & t_row_pip==4'd15 & t_col_pip==4'd15); //lcu_x,y = 8, 4, 2
-//============= extension ====================
+        reg [2:0] t_lcu_x, t_lcu_x_nxt, t_lcu_x_pip;
+        reg [2:0] t_lcu_y, t_lcu_y_nxt, t_lcu_y_pip;
+        reg t_ipf_wo_class, t_ipf_wo_class_nxt;
+        reg [4:0] t_ipf_band_pos, t_ipf_band_pos_nxt, t_ipf_band_pos_pip;
+        reg [15:0] t_ipf_offset, t_ipf_offset_nxt;
 
-//============= FSM ===================
-reg [3:0] state, nxt_state;
-reg [3:0] state_pip;
-parameter state_idle = 0;
-parameter state_off = 1;
-parameter state_po = 2;
-parameter state_in = 3;
-parameter state_wait = 4;
-parameter state_wo_0 = 5;
-parameter state_wo_1 = 6;
-parameter state_finish = 7;
+    //======== operation ==============
+        reg [4:0] low_bound, up_bound;
+        reg [3:0] offset_po, offset_po_nxt;
+        reg [3:0] offset_wo, offset_wo_nxt;
+        reg [3:0] posi_a, posi_c, posi_b;
+        reg [7:0] a,b,c;
+        reg [7:0] c_pip;
+        reg [7:0] a_nxt,b_nxt,c_nxt;
+        reg [8:0] mid;
 
-//============= FSM ===================
-always @(*)begin
-    //default
-    busy = 1;
-    out_en = 0;
-    nxt_state = state_wait;
-    case(state)
-        state_idle:begin
-            busy = 0;
-            out_en = 0;
-            nxt_state = state_wait;
-        end
-        state_in:begin
-            busy = 0;
-            out_en = 0;
-            if (end_lcu_pip) begin
-                if (ipf_type==2'd0) nxt_state = state_off;
-                else if (ipf_type==2'd1) nxt_state = state_po;
-                else if (ipf_type==2'd2 & ipf_wo_class==1'b0) nxt_state = state_wo_0; //wait for data
-                else nxt_state = state_wo_1; //wait for data
+
+
+    //======== data storage ===========
+        reg [7:0] window0 [0:LCU_SIZE-1];   //window size = 16, 32, 64
+        reg [7:0] window1 [0:LCU_SIZE-1];
+        reg [7:0] window0_nxt [0:LCU_SIZE-1];
+        reg [7:0] window1_nxt [0:LCU_SIZE-1];
+
+    //============ FSM ================
+        reg [3:0] state, state_nxt, state_case_out;
+        parameter IDLE = 0;
+        parameter WAIT = 1;
+        parameter INIT = 2;
+        parameter OFF = 3;
+        parameter PO = 4;
+        parameter WO_H = 5;
+        parameter WO_V = 6;
+        parameter FINISH = 7;
+
+//============= Wire assignment ===================
+    assign  end_lcu = (t_row==4'd15 & t_col==4'd15); //col, row = 16, 32, 64
+    assign  end_lcu_pip = (t_row_pip==4'd15 & t_col_pip==4'd15); //col, row = 16, 32, 64
+    assign  end_img = (!in_en & t_row_pip==4'd15 & t_col_pip==4'd15); //lcu_x,y = 8, 4, 2
+
+//============ Finite State Machine (Designed for dout_nxt)===================
+    always @(*) begin
+        // generate duplicate case output
+        case(ipf_type)
+            2'd0: state_case_out = OFF;
+            2'd1: state_case_out = PO;
+            2'd2: state_case_out = ipf_wo_class? WO_V : WO_H;
+            default: state_case_out = IDLE;
+        endcase
+        case(state)
+            IDLE: begin
+                busy = 0;
+                out_en = 0;
+                state_nxt = WAIT;
             end
-            else nxt_state = state;
-        end
-
-        state_wait:begin
-            busy = 0;
-            out_en = 0;
-            nxt_state = state_in;
-        end
-
-        state_off:begin
-            busy = 0;
-            out_en = 1;
-            if (end_img) nxt_state = state_finish;
-            else if (end_lcu_pip)begin
-                if (ipf_type==2'd0) nxt_state = state_off;
-                else if (ipf_type==2'd1) nxt_state = state_po;
-                else if (ipf_type==2'd2 & ipf_wo_class==1'b0) nxt_state = state_wo_0;
-                else nxt_state = state_wo_1;
+            INIT: begin
+                busy = 0;
+                out_en = 0;
+                if (end_lcu_pip) state_nxt = state_case_out;
+                else state_nxt = state;
             end
-            else nxt_state = state;
-        end
-        state_po:begin
-            busy = 0;
-            out_en = 1;
-            if (end_img) nxt_state = state_finish;
-            else if (end_lcu_pip)begin
-                if (ipf_type==2'd0) nxt_state = state_off;
-                else if (ipf_type==2'd1) nxt_state = state_po;
-                else if (ipf_type==2'd2 & ipf_wo_class==1'b0) nxt_state = state_wo_0;
-                else nxt_state = state_wo_1;
+            WAIT: begin
+                busy = 0;
+                out_en = 0;
+                state_nxt = INIT;
             end
-            else nxt_state = state;
-        end
-        state_wo_0:begin
-            busy = 0;
-            out_en = 1;
-            if (end_img) nxt_state = state_finish;
-            else if (end_lcu_pip)begin
-                if (ipf_type==2'd0) nxt_state = state_off;
-                else if (ipf_type==2'd1) nxt_state = state_po;
-                else if (ipf_type==2'd2 & ipf_wo_class==1'b0) nxt_state = state_wo_0;
-                else nxt_state = state_wo_1;
+            OFF: begin
+                busy = 0;
+                out_en = 1;
+                if (end_img)        state_nxt = FINISH;
+                else if (end_lcu_pip)   state_nxt = state_case_out;
+                else                state_nxt = state;
             end
-            else nxt_state = state;
-        end
-        state_wo_1:begin
-            busy = 0;
-            out_en = 1;
-            if (end_img) nxt_state = state_finish;
-            else if (end_lcu_pip)begin
-                if (ipf_type==2'd0) nxt_state = state_off;
-                else if (ipf_type==2'd1) nxt_state = state_po;
-                else if (ipf_type==2'd2 & ipf_wo_class==1'b0) nxt_state = state_wo_0;
-                else nxt_state = state_wo_1;
+            PO: begin
+                busy = 0;
+                out_en = 1;
+                if (end_img)        state_nxt = FINISH;
+                else if (end_lcu_pip)   state_nxt = state_case_out;
+                else                state_nxt = state;
             end
-            else nxt_state = state;
-        end
+            WO_H: begin
+                busy = 0;
+                out_en = 1;
+                if (end_img)        state_nxt = FINISH;
+                else if (end_lcu_pip)   state_nxt = state_case_out;
+                else                state_nxt = state;
+            end
+            WO_V: begin
+                busy = 0;
+                out_en = 1;
+                if (end_img)        state_nxt = FINISH;
+                else if (end_lcu_pip)   state_nxt = state_case_out;
+                else                state_nxt = state;
+            end
+            FINISH: begin
+                busy = 1;
+                out_en = 1;
+                state_nxt = state;
+            end
+            default: begin
+                busy = 1;
+                out_en = 0;
+                state_nxt = WAIT;
+            end
 
-        state_finish:begin
-            busy = 1;
-            out_en = 1;
-            nxt_state = state;
-        end
+        endcase
+    end
 
-    endcase
-end
-
-//============= comb ========================
-integer i ;
+//============= Combinational ckt ========================
 always @(*)begin
     col_nxt = col + 1;
     row_nxt = (col==4'd15)? row+1 : row;
     t_col = col;
     t_row = row - 1;
-    din_off_nxt = (seq==1'b0)? window1[t_col] : window0[t_col];
+
     dout_nxt = 0;
     dout_addr_nxt = 0;
+    border = (seq==1'b0)? window1[t_col] : window0[t_col];
+    din_off_nxt = (seq==1'b0)? window1[t_col] : window0[t_col];
+
     seq_nxt = seq;
     finish_nxt = 0;
+
     t_lcu_x_nxt = (end_lcu)? lcu_x : t_lcu_x;
     t_lcu_y_nxt = (end_lcu)? lcu_y : t_lcu_y;
     t_ipf_wo_class_nxt = (end_lcu)? ipf_wo_class : t_ipf_wo_class;
     t_ipf_band_pos_nxt = (end_lcu)? ipf_band_pos : t_ipf_band_pos;
     t_ipf_offset_nxt = (end_lcu)? ipf_offset : t_ipf_offset;
 
-    border = (seq==1'b0)? window1[t_col] : window0[t_col];
 
     for (i = 0 ; i<16; i=i+1)begin
         window0_nxt[i]=window0[i];
         window1_nxt[i]=window1[i];
     end
 
-    din_temp_nxt = din;
+    din_buffer_nxt = din;
     if (seq==1'b0)begin
-        window0_nxt[col] = din_temp;
+        window0_nxt[col] = din_buffer;
         seq_nxt = (t_col==4'd15)? 1'b1:seq;
     end
     else if (seq==1'b1)begin
-        window1_nxt[col] = din_temp;
+        window1_nxt[col] = din_buffer;
         seq_nxt = (t_col==4'd15)? 1'b0:seq;
     end
 
-    // case(state)
-    // endcase
-
     case(state)
-        state_idle:begin
+        IDLE:begin
             col_nxt = col;
             row_nxt = row;
         end
-        state_wait:begin
+
+        WAIT:begin
             col_nxt = 0;
             row_nxt = 0;
         end
         
-        state_off:begin
+        OFF:begin
             din_off_nxt = (seq==1'b0)? window1[t_col] : window0[t_col];
             dout_nxt = din_off;
             dout_addr_nxt = (t_row_pip<<7) + (t_lcu_y_pip<<11) + (t_lcu_x_pip<<4) + t_col_pip;
         end
 
-        state_po:begin
+        PO:begin
             dout_nxt = din_po;
             dout_addr_nxt = (t_row_pip<<7) + (t_lcu_y_pip<<11) + (t_lcu_x_pip<<4) + t_col_pip;
         end
 
-        state_wo_0:begin
+        WO_H:begin
             if (t_col_pip==4'd0 | t_col_pip==4'd15)begin
                 dout_nxt = border_pip;
             end
@@ -229,7 +221,8 @@ always @(*)begin
             end
             dout_addr_nxt = (t_row_pip<<7) + (t_lcu_y_pip<<11) + (t_lcu_x_pip<<4) + t_col_pip;
         end
-        state_wo_1:begin
+
+        WO_V:begin
             if (t_row_pip==4'd0 | t_row_pip==4'd15)begin
                 dout_nxt = border_pip;
             end
@@ -238,7 +231,8 @@ always @(*)begin
             end
             dout_addr_nxt = (t_row_pip<<7) + (t_lcu_y_pip<<11) + (t_lcu_x_pip<<4) + t_col_pip;
         end
-        state_finish:begin
+        
+        FINISH:begin
             finish_nxt = 1;
         end
     endcase
@@ -249,8 +243,8 @@ always @(*)begin
     //============== PO ================
     pix = (seq==1'b0)? window1[t_col] : window0[t_col];
     pix_band = pix>>3;
-    low_bound = t_ipf_band_pos_pip - 1;
-    up_bound = t_ipf_band_pos_pip + 1;
+    low_bound = (t_ipf_band_pos_pip == 5'd1)?  5'd0  : t_ipf_band_pos_pip - 1;
+    up_bound = (t_ipf_band_pos_pip == 5'd31)?  5'd31 : t_ipf_band_pos_pip + 1;
     offset_po_nxt = ((pix_band[1:0])==2'd0)? t_ipf_offset[15:12] :
              ((pix_band[1:0])==2'd1)? t_ipf_offset[11:8] :
              ((pix_band[1:0])==2'd2)? t_ipf_offset[7:4] : t_ipf_offset[3:0];
@@ -262,19 +256,31 @@ always @(*)begin
     din_po = (pix_band_pip == low_bound | pix_band_pip == up_bound | pix_band_pip == t_ipf_band_pos_pip)? pix_pip : din_po_temp; 
 
     //============== WO ================
-    posi_a = t_col-1;
-    posi_c = t_col;
-    posi_b = t_col+1;
-    case (t_ipf_wo_class)
-        1'b0:begin
-            if (seq==1'b0) begin a = window1[posi_a]; c = window1[posi_c];b = window1[posi_b];end
-            else begin a = window0[posi_a]; c = window0[posi_c];b = window0[posi_b];end
+    a_col = t_col-1;
+    b_col = t_col+1;
+    case ({t_ipf_wo_class, seq})
+        2'b00: begin
+            a = window1[a_col];
+            c = window1[t_col];
+            b = window1[b_col];
         end
-        1'b1:begin
-            if (seq==1'b0)begin a = window0[col]; c = window1[col]; b = din_temp;end
-            else begin a = window1[col]; c = window0[col]; b = din_temp;end
+        2'b01: begin
+            a = window0[a_col];
+            c = window0[t_col];
+            b = window0[b_col];
+        end
+        2'b10: begin
+            a = window0[t_col];
+            c = window1[t_col];
+            b = din_buffer;
+        end
+        2'b11: begin
+            a = window1[t_col];
+            c = window0[t_col];
+            b = din_buffer;
         end
     endcase
+
 
     mid = (a+b)>>1;
     if (c<a & c<b)begin //Category 0
@@ -310,10 +316,9 @@ always @(posedge clk or posedge reset)begin
         t_row_pip <= 0;
         t_col_pip <= 0;
         seq <= 0;
-        seq_pip <= 0;
         dout <= 0;
         dout_addr <= 0;
-        din_temp <= 0;
+        din_buffer <= 0;
 
         din_off <= 0;
 
@@ -339,8 +344,7 @@ always @(posedge clk or posedge reset)begin
         offset_po <= 0;
 
         finish <= 0;
-        state <= state_idle;
-        state_pip <= state_idle;
+        state <= IDLE;
     end
     else begin
         for (i = 0 ; i<16; i=i+1)begin
@@ -352,10 +356,9 @@ always @(posedge clk or posedge reset)begin
         t_row_pip <= t_row;
         t_col_pip <= t_col;
         seq <= seq_nxt;
-        seq_pip <= seq;
         dout <= dout_nxt;
         dout_addr <= dout_addr_nxt;
-        din_temp <= din_temp_nxt;
+        din_buffer <= din_buffer_nxt;
 
         din_off <= din_off_nxt;
 
@@ -381,8 +384,7 @@ always @(posedge clk or posedge reset)begin
         offset_po <= offset_po_nxt;
 
         finish <= finish_nxt;
-        state <= nxt_state;
-        state_pip <= state;
+        state <= state_nxt;
     end
 end
 
