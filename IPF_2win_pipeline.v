@@ -1,4 +1,4 @@
-module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_offset, lcu_x, lcu_y, (lcu_size, )busy, out_en, dout, dout_addr, finish);
+module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_offset, lcu_x, lcu_y, lcu_size, busy, out_en, dout, dout_addr, finish);
 //===========IO====================
     input   clk;
     input   reset;
@@ -10,19 +10,19 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
     input   [15:0] ipf_offset;
     input   [2:0]  lcu_x;
     input   [2:0]  lcu_y;
-    input   [1:0]  (lcu_size;
-)    output reg busy;
+    input   [1:0]  lcu_size;
+    output reg busy;
     output reg finish;
     output reg out_en;
     output reg [7:0] dout;
     output reg [13:0] dout_addr;
 //===========IO====================
 
-
 //============ reg/wire declaration ===================
-    parameter (LCU_SIZE =) 64;    // TODO: parameterized
-    parameter logSIZE = 8;
-
+    wire [7:0] LCU_SIZE;    // TODO: parameterized
+    wire [2:0]logSIZE;
+    assign LCU_SIZE = lcu_size==2'b00? 6'd15 : lcu_size==2'b01? 6'd31 : 6'd63;
+    assign logSIZE = lcu_size==2'b00? 3'd2 : lcu_size==2'b01? 3'd5 : 3'd7;
     integer i ;
 
     //======== data I/O ===============
@@ -36,9 +36,9 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
         reg [7:0] din_off, din_off_nxt;
 
     //======== control signals ========
-        reg [logSIZE-1:0] col, col_nxt, col_pip; //col length = 16, 32, 64
-        reg [logSIZE-1:0] row_in, row_in_nxt,row, row_pip;
-        reg [logSIZE-1:0] a_col, b_col;
+        reg [logSIZE:0] col, col_nxt, col_pip; //col length = 16, 32, 64
+        reg [logSIZE:0] row_in, row_in_nxt,row, row_pip;
+        reg [logSIZE:0] a_col, b_col;
         reg seq, seq_nxt;
         reg finish_nxt;
 
@@ -63,10 +63,10 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
         reg [8:0] mid;
 
     //======== data storage ===========
-        reg [7:0] window0 [0:(LCU_SIZE-1)];   //window size = 16, 32, 64
-        reg [7:0] window1 [0:(LCU_SIZE-1)];
-        reg [7:0] window0_nxt [0:(LCU_SIZE-1)];
-        reg [7:0] window1_nxt [0:(LCU_SIZE-1)];
+        reg [7:0] window0 [0:LCU_SIZE];   //window size = 16, 32, 64
+        reg [7:0] window1 [0:LCU_SIZE];
+        reg [7:0] window0_nxt [0:LCU_SIZE];
+        reg [7:0] window1_nxt [0:LCU_SIZE];
 
     //============ FSM ================
         reg [3:0] state, state_nxt, state_case_out;
@@ -80,9 +80,9 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
         parameter FINISH = 7;
 
 //============= Wire assignment ===================
-    assign  end_lcu = (row==(LCU_SIZE-1) & col==(LCU_SIZE-1)); //col, row = 16, 32, 64
-    assign  end_lcu_pip = (row_pip==(LCU_SIZE-1) & col_pip==(LCU_SIZE-1)); //col, row = 16, 32, 64
-    assign  end_img = (!in_en & row_pip==(LCU_SIZE-1) & col_pip==(LCU_SIZE-1)); //lcu_x,y = 8, 4, 2
+    assign  end_lcu = (row==LCU_SIZE & col==LCU_SIZE); //col, row = 16, 32, 64
+    assign  end_lcu_pip = (row_pip==LCU_SIZE & col_pip==LCU_SIZE); //col, row = 16, 32, 64
+    assign  end_img = (!in_en & row_pip==LCU_SIZE & col_pip==LCU_SIZE); //lcu_x,y = 8, 4, 2
 
 //============ Finite State Machine (Designed for dout_nxt)===================
     always @(*) begin
@@ -155,7 +155,7 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
 //============= Combinational ckt ========================
     always @(*)begin
         col_nxt = col + 1;
-        row_in_nxt = (col==(LCU_SIZE-1))? row_in+1 : row_in;
+        row_in_nxt = (col==LCU_SIZE)? row_in+1 : row_in;
         row = row_in - 1;
 
         dout_nxt = 0;
@@ -180,11 +180,11 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
         din_buffer_nxt = din;
         if (seq==1'b0)begin
             window0_nxt[col] = din_buffer;
-            seq_nxt = (col==(LCU_SIZE-1))? 1'b1:seq;
+            seq_nxt = (col==LCU_SIZE)? 1'b1:seq;
         end
         else if (seq==1'b1)begin
             window1_nxt[col] = din_buffer;
-            seq_nxt = (col==(LCU_SIZE-1))? 1'b0:seq;
+            seq_nxt = (col==LCU_SIZE)? 1'b0:seq;
         end
 
 
@@ -210,7 +210,7 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
             end
 
             WO_H:begin
-                if (col_pip==0 | col_pip==(LCU_SIZE-1))begin
+                if (col_pip==0 | col_pip==LCU_SIZE)begin
                     dout_nxt = border_pip;
                 end
                 else begin
@@ -219,7 +219,7 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
             end
 
             WO_V:begin
-                if (row_pip==0 | row_pip==(LCU_SIZE-1))begin
+                if (row_pip==0 | row_pip==LCU_SIZE)begin
                     dout_nxt = border_pip;
                 end
                 else begin
