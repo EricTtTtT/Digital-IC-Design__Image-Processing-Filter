@@ -22,7 +22,7 @@ output reg [13:0] dout_addr;
 
     integer i ;
     //======== data I/O ===============
-        reg [7:0] din_buffer, din_po_temp, pix, pix_band;
+        reg [7:0] din_buffer, pix, pix_band;
         reg signed [8:0] din_po_add, din_wo_add;
         reg [7:0] dout_po, dout_po_tmp, dout_wo, dout_buffer;
         reg [13:0] dout_addr_buffer;
@@ -52,10 +52,8 @@ output reg [13:0] dout_addr;
         reg [8:0] mid;
         reg signed [8:0] adder_in1;
         reg signed [8:0] adder_0_in2, adder_1_in2, adder_2_in2, adder_3_in2;
-        reg [8:0] adder_0_out, adder_0_out_tmp;
-        reg [8:0] adder_1_out, adder_1_out_tmp;
-        reg [8:0] adder_2_out, adder_2_out_tmp;
-        reg [8:0] adder_3_out, adder_3_out_tmp;
+        reg [8:0] adder_0_out_tmp, adder_1_out_tmp, adder_2_out_tmp, adder_3_out_tmp;
+        reg [7:0] adder_0_out, adder_1_out, adder_2_out, adder_3_out;
 
     //======== data storage ===========
         reg [7:0] window0 [0:LCU_SIZE-1];   //window size = 16, 32, 64
@@ -72,7 +70,7 @@ output reg [13:0] dout_addr;
         parameter PO = 4;
         parameter WO_H = 5;
         parameter WO_V = 6;
-        parameter FINISH = 7;
+        parameter DONE = 7;
 
 //============ Finite State Machine ===================
     always @(*) begin
@@ -105,32 +103,32 @@ output reg [13:0] dout_addr;
                 busy = 0;
                 out_en = 1;
 
-                if (end_img)        state_nxt = FINISH;
+                if (end_img)        state_nxt = DONE;
                 else if (end_lcu)   state_nxt = state_case_out;
                 else                state_nxt = state;
             end
             PO: begin
                 busy = 0;
                 out_en = 1;
-                if (end_img)        state_nxt = FINISH;
+                if (end_img)        state_nxt = DONE;
                 else if (end_lcu)   state_nxt = state_case_out;
                 else                state_nxt = state;
             end
             WO_H: begin
                 busy = 0;
                 out_en = 1;
-                if (end_img)        state_nxt = FINISH;
+                if (end_img)        state_nxt = DONE;
                 else if (end_lcu)   state_nxt = state_case_out;
                 else                state_nxt = state;
             end
             WO_V: begin
                 busy = 0;
                 out_en = 1;
-                if (end_img)        state_nxt = FINISH;
+                if (end_img)        state_nxt = DONE;
                 else if (end_lcu)   state_nxt = state_case_out;
                 else                state_nxt = state;
             end
-            FINISH: begin
+            DONE: begin
                 busy = 1;
                 out_en = 1;
                 state_nxt = state;
@@ -159,10 +157,8 @@ output reg [13:0] dout_addr;
 
     //======== Next Logic =============
     always @(*) begin
-        col_nxt = col_a1;
-        row_in_nxt = (col_end)? row_in_a1 : row_in;
-        dout_buffer = dout;
-        dout_addr_buffer = dout_addr;
+        col_nxt = (state==IDLE | state==WAIT)? 0 : col_a1;
+        row_in_nxt = (state==IDLE | state==WAIT)? 0 : (col_end)? row_in_a1 : row_in;
         seq_nxt = seq;
         finish_nxt = 0;
         t_lcu_x_nxt = (end_lcu)? lcu_x : t_lcu_x;
@@ -170,6 +166,9 @@ output reg [13:0] dout_addr;
         t_ipf_wo_class_nxt = (end_lcu)? ipf_wo_class : t_ipf_wo_class;
         t_ipf_band_pos_nxt = (end_lcu)? ipf_band_pos : t_ipf_band_pos;
         t_ipf_offset_nxt = (end_lcu)? ipf_offset : t_ipf_offset;
+        
+        dout_buffer = 0;
+        dout_addr_buffer = {t_lcu_y, row, t_lcu_x, col};
 
         for (i = 0 ; i<LCU_SIZE; i=i+1) begin
             window0_nxt[i]=window0[i];
@@ -186,21 +185,15 @@ output reg [13:0] dout_addr;
         end
 
         case(state)
-            IDLE: begin
-                col_nxt = col;
-                row_in_nxt = row_in;
-            end
-            WAIT: begin
-                col_nxt = 0;
-                row_in_nxt = 0;
-            end
+            // IDLE: begin
+            // end
+            // WAIT: begin
+            // end
             OFF: begin
                 dout_buffer = (seq==1'b0)? window1[col] : window0[col];
-                dout_addr_buffer = (row<<7) + (t_lcu_y<<11) + (t_lcu_x<<4) + col;
             end
             PO: begin
                 dout_buffer = dout_po;
-                dout_addr_buffer = (row<<7) + (t_lcu_y<<11) + (t_lcu_x<<4) + col;
             end
             WO_H: begin
                 if (col_begin | col_end) begin
@@ -209,7 +202,6 @@ output reg [13:0] dout_addr;
                 else begin
                     dout_buffer = dout_wo;
                 end
-                dout_addr_buffer = (row<<7) + (t_lcu_y<<11) + (t_lcu_x<<4) + col;
             end
             WO_V: begin
                 if (row_begin | row_end) begin
@@ -218,9 +210,8 @@ output reg [13:0] dout_addr;
                 else begin
                     dout_buffer = dout_wo;
                 end
-                dout_addr_buffer = (row<<7) + (t_lcu_y<<11) + (t_lcu_x<<4) + col;
             end
-            FINISH: begin
+            DONE: begin
                 finish_nxt = 1;
             end
         endcase
@@ -263,14 +254,14 @@ output reg [13:0] dout_addr;
         endcase
 
     //============ Adder ==============
-        adder_0_in2 = $signed(t_ipf_offset[15:12]);
-        adder_1_in2 = $signed(t_ipf_offset[11:8]);
-        adder_2_in2 = $signed(t_ipf_offset[7:4]);
-        adder_3_in2 = $signed(t_ipf_offset[3:0]);
+        adder_0_in2 = {{5{t_ipf_offset[15]}}, t_ipf_offset[15:12]};
+        adder_1_in2 = {{5{t_ipf_offset[11]}}, t_ipf_offset[11:8]};
+        adder_2_in2 = {{5{t_ipf_offset[7]}}, t_ipf_offset[7:4]};
+        adder_3_in2 = {{5{t_ipf_offset[3]}}, t_ipf_offset[3:0]};
         if (state==PO) begin
-            adder_in1 = $signed(pix);
+            adder_in1 = {pix[7], pix};
         end else begin
-            adder_in1 = $signed(c_pix);
+            adder_in1 = {c_pix[7], c_pix};
         end
         adder_0_out_tmp = adder_in1 + adder_0_in2;
         adder_1_out_tmp = adder_in1 + adder_1_in2;
@@ -278,22 +269,22 @@ output reg [13:0] dout_addr;
         adder_3_out_tmp = adder_in1 + adder_3_in2;
 
         // range constraint: 0-255
-        case ({adder_in1[7], adder_0_out_tmp[8]})
+        case ({adder_in1[8], adder_0_out_tmp[8]})
             2'b10: adder_0_out = 8'd255;
             2'b01: adder_0_out = 8'd0;
             default: adder_0_out = adder_0_out_tmp[7:0];
         endcase
-        case ({adder_in1[7], adder_1_out_tmp[8]})
+        case ({adder_in1[8], adder_1_out_tmp[8]})
             2'b10: adder_1_out = 8'd255;
             2'b01: adder_1_out = 8'd0;
             default: adder_1_out = adder_1_out_tmp[7:0];
         endcase
-        case ({adder_in1[7], adder_2_out_tmp[8]})
+        case ({adder_in1[8], adder_2_out_tmp[8]})
             2'b10: adder_2_out = 8'd255;
             2'b01: adder_2_out = 8'd0;
             default: adder_2_out = adder_2_out_tmp[7:0];
         endcase
-        case ({adder_in1[7], adder_3_out_tmp[8]})
+        case ({adder_in1[8], adder_3_out_tmp[8]})
             2'b10: adder_3_out = 8'd255;
             2'b01: adder_3_out = 8'd0;
             default: adder_3_out = adder_3_out_tmp[7:0];
@@ -312,7 +303,7 @@ output reg [13:0] dout_addr;
 
     //============ WO =================
         mid = (a_pix + b_pix) >> 1;     // TODO: without mid?
-        case ({c_pix<a_pix, c_pix==a_pix, c_pix<b_pix, c_pix==b_pix, c_pix<mid, c_pix==mid})    // TODO: critical path or not??
+        case ({c_pix<a_pix, c_pix==a_pix, c_pix<b_pix, c_pix==b_pix, c_pix<mid[7:0], c_pix==mid[7:0]    })    // TODO: critical path or not??
             6'b101010:  dout_wo = adder_0_out;     // Category 0
             6'b000000:  dout_wo = adder_3_out;     // Category 3
             6'b001010:  dout_wo = adder_1_out;     // Category 1 (c < mid)
