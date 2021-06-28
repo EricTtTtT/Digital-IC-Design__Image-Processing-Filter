@@ -242,13 +242,11 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
         low_bound = (t_ipf_band_pos_pip == 5'd1)?  5'd0  : t_ipf_band_pos_pip - 1;
         up_bound = (t_ipf_band_pos_pip == 5'd31)?  5'd31 : t_ipf_band_pos_pip + 1;
         offset_po_nxt = ((pix_band[1:0])==2'd0)? t_ipf_offset[15:12] :
-                ((pix_band[1:0])==2'd1)? t_ipf_offset[11:8] :
-                ((pix_band[1:0])==2'd2)? t_ipf_offset[7:4] : t_ipf_offset[3:0];
+                        ((pix_band[1:0])==2'd1)? t_ipf_offset[11:8] :
+                        ((pix_band[1:0])==2'd2)? t_ipf_offset[7:4] : t_ipf_offset[3:0];
         din_po_add = $signed( {1'b0,pix_pip})+$signed(offset_po);
         //>255 or <0
         din_po_temp = (din_po_add[9])? 8'd0 : (din_po_add[8])? 8'd255 : din_po_add[7:0]; 
-        //din_po_temp =  din_po_add[7:0]; 
-        //bound
         din_po = (pix_band_pip == low_bound | pix_band_pip == up_bound | pix_band_pip == t_ipf_band_pos_pip)? pix_pip : din_po_temp; 
 
         //============== WO ================
@@ -295,9 +293,31 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
             offset_wo_nxt = 0;
         end
 
-        din_wo_add = $signed(c_pip)+$signed(offset_wo);
+        mid = (a + b) >> 1;     // TODO: without mid?
+        case ({c<a, c==a, c<b, c==b, c<mid[7:0], c==mid[7:0]    })    // TODO: critical path or not??
+            6'b101010:  offset_wo_nxt = t_ipf_offset[15:12];     // Category 0
+            6'b000000:  offset_wo_nxt = t_ipf_offset[3:0];     // Category 3
+            6'b001010:  offset_wo_nxt = t_ipf_offset[11:8];     // Category 1 (c < mid)
+            6'b000110:  offset_wo_nxt = t_ipf_offset[11:8];     //   >= min and <= max (8 cases)
+            6'b011010:  offset_wo_nxt = t_ipf_offset[11:8];
+            6'b010110:  offset_wo_nxt = t_ipf_offset[11:8];
+            6'b100010:  offset_wo_nxt = t_ipf_offset[11:8];
+            6'b010010:  offset_wo_nxt = t_ipf_offset[11:8];
+            6'b100110:  offset_wo_nxt = t_ipf_offset[11:8];
+            6'b010110:  offset_wo_nxt = t_ipf_offset[11:8];
+            6'b001000:  offset_wo_nxt = t_ipf_offset[7:4];     // Category 2 (c > mid)
+            6'b000100:  offset_wo_nxt = t_ipf_offset[7:4];     //   >= min and <= max (8 cases)
+            6'b011000:  offset_wo_nxt = t_ipf_offset[7:4];
+            6'b010100:  offset_wo_nxt = t_ipf_offset[7:4];
+            6'b100000:  offset_wo_nxt = t_ipf_offset[7:4];
+            6'b010000:  offset_wo_nxt = t_ipf_offset[7:4];
+            6'b100100:  offset_wo_nxt = t_ipf_offset[7:4];
+            6'b010100:  offset_wo_nxt = t_ipf_offset[7:4];
+            default:    offset_wo_nxt = 0;
+        endcase
+        
         //>255 or <0
-        //din_wo = (c[7] & !din_wo_add[8])? 8'd255 : (!c[7] & din_wo_add[8])? 8'd0 : din_wo_add[7:0]; 
+        din_wo_add = $signed({1'b0,c_pip})+$signed(offset_wo);
         din_wo = din_wo_add[7:0]; 
     end
 
