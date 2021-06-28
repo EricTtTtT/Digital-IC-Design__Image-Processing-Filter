@@ -275,28 +275,46 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
             end
         endcase
 
-        mid = (a + b) >> 1;     // TODO: without mid?
-        case ({c<a, c==a, c<b, c==b, c<mid[7:0], c==mid[7:0]    })    // TODO: critical path or not??
-            6'b101010:  offset_wo_nxt = t_ipf_offset[15:12];     // Category 0
-            6'b000000:  offset_wo_nxt = t_ipf_offset[3:0];     // Category 3
-            6'b001010:  offset_wo_nxt = t_ipf_offset[11:8];     // Category 1 (c < mid)
-            6'b000110:  offset_wo_nxt = t_ipf_offset[11:8];     //   >= min and <= max (8 cases)
-            6'b011010:  offset_wo_nxt = t_ipf_offset[11:8];
-            6'b010110:  offset_wo_nxt = t_ipf_offset[11:8];
-            6'b100010:  offset_wo_nxt = t_ipf_offset[11:8];
-            6'b010010:  offset_wo_nxt = t_ipf_offset[11:8];
-            6'b100110:  offset_wo_nxt = t_ipf_offset[11:8];
-            6'b010110:  offset_wo_nxt = t_ipf_offset[11:8];
-            6'b001000:  offset_wo_nxt = t_ipf_offset[7:4];     // Category 2 (c > mid)
-            6'b000100:  offset_wo_nxt = t_ipf_offset[7:4];     //   >= min and <= max (8 cases)
-            6'b011000:  offset_wo_nxt = t_ipf_offset[7:4];
-            6'b010100:  offset_wo_nxt = t_ipf_offset[7:4];
-            6'b100000:  offset_wo_nxt = t_ipf_offset[7:4];
-            6'b010000:  offset_wo_nxt = t_ipf_offset[7:4];
-            6'b100100:  offset_wo_nxt = t_ipf_offset[7:4];
-            6'b010100:  offset_wo_nxt = t_ipf_offset[7:4];
-            default:    offset_wo_nxt = 0;
-        endcase
+        mid = (a+b);
+        if (c<a & c<b)begin //Category 0
+            offset_wo_nxt = t_ipf_offset[15:12];
+        end
+        else if (c < mid[8:1] & (c>=a | c>=b))begin //Category 1
+            offset_wo_nxt = t_ipf_offset[11:8];
+        end
+        else if (c > mid[8:1] & (c<=a | c<=b))begin //Category 2
+            offset_wo_nxt = t_ipf_offset[7:4];
+        end
+        else if (c > a & c>b)begin //Category 3
+            offset_wo_nxt = t_ipf_offset[3:0];
+        end
+        else begin
+            offset_wo_nxt = 0;
+        end
+        
+        // mid = (a + b) >> 1;     // TODO: without mid?
+        // case ({c<a, c==a, c<b, c==b, c<mid[7:0], c==mid[7:0]    })    // TODO: critical path or not??
+        //     6'b101010:  offset_wo_nxt = t_ipf_offset[15:12];     // Category 0
+        //     6'b000000:  offset_wo_nxt = t_ipf_offset[3:0];     // Category 3
+        //     6'b001010:  offset_wo_nxt = t_ipf_offset[11:8];     // Category 1 (c < mid)
+        //     6'b000110:  offset_wo_nxt = t_ipf_offset[11:8];     //   >= min and <= max (8 cases)
+        //     6'b011010:  offset_wo_nxt = t_ipf_offset[11:8];
+        //     6'b010110:  offset_wo_nxt = t_ipf_offset[11:8];
+        //     6'b100010:  offset_wo_nxt = t_ipf_offset[11:8];
+        //     6'b010010:  offset_wo_nxt = t_ipf_offset[11:8];
+        //     6'b100110:  offset_wo_nxt = t_ipf_offset[11:8];
+        //     6'b010110:  offset_wo_nxt = t_ipf_offset[11:8];
+        //     6'b001000:  offset_wo_nxt = t_ipf_offset[7:4];     // Category 2 (c > mid)
+        //     6'b000100:  offset_wo_nxt = t_ipf_offset[7:4];     //   >= min and <= max (8 cases)
+        //     6'b011000:  offset_wo_nxt = t_ipf_offset[7:4];
+        //     6'b010100:  offset_wo_nxt = t_ipf_offset[7:4];
+        //     6'b100000:  offset_wo_nxt = t_ipf_offset[7:4];
+        //     6'b010000:  offset_wo_nxt = t_ipf_offset[7:4];
+        //     6'b100100:  offset_wo_nxt = t_ipf_offset[7:4];
+        //     6'b010100:  offset_wo_nxt = t_ipf_offset[7:4];
+        //     default:    offset_wo_nxt = 0;
+        // endcase
+
 
         //>255 or <0
         din_wo_add = $signed({1'b0,c_pip})+$signed(offset_wo);
