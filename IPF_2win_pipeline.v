@@ -1,4 +1,4 @@
-module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_offset, lcu_x, lcu_y, lcu_size, busy, out_en, dout, dout_addr, finish);
+module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_offset, lcu_x, lcu_y, (lcu_size, )busy, out_en, dout, dout_addr, finish);
 //===========IO====================
     input   clk;
     input   reset;
@@ -10,8 +10,8 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
     input   [15:0] ipf_offset;
     input   [2:0]  lcu_x;
     input   [2:0]  lcu_y;
-    input   [1:0]  lcu_size;
-    output reg busy;
+    input   [1:0]  (lcu_size;
+)    output reg busy;
     output reg finish;
     output reg out_en;
     output reg [7:0] dout;
@@ -20,8 +20,8 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
 
 
 //============ reg/wire declaration ===================
-    parameter LCU_SIZE = 16;    // TODO: parameterized
-    parameter logSIZE = 4;
+    parameter (LCU_SIZE =) 64;    // TODO: parameterized
+    parameter logSIZE = 8;
 
     integer i ;
 
@@ -38,7 +38,7 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
     //======== control signals ========
         reg [logSIZE-1:0] col, col_nxt, col_pip; //col length = 16, 32, 64
         reg [logSIZE-1:0] row_in, row_in_nxt,row, row_pip;
-        reg [3:0] a_col, b_col;
+        reg [logSIZE-1:0] a_col, b_col;
         reg seq, seq_nxt;
         reg finish_nxt;
 
@@ -63,10 +63,10 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
         reg [8:0] mid;
 
     //======== data storage ===========
-        reg [7:0] window0 [0:LCU_SIZE-1];   //window size = 16, 32, 64
-        reg [7:0] window1 [0:LCU_SIZE-1];
-        reg [7:0] window0_nxt [0:LCU_SIZE-1];
-        reg [7:0] window1_nxt [0:LCU_SIZE-1];
+        reg [7:0] window0 [0:(LCU_SIZE-1)];   //window size = 16, 32, 64
+        reg [7:0] window1 [0:(LCU_SIZE-1)];
+        reg [7:0] window0_nxt [0:(LCU_SIZE-1)];
+        reg [7:0] window1_nxt [0:(LCU_SIZE-1)];
 
     //============ FSM ================
         reg [3:0] state, state_nxt, state_case_out;
@@ -80,9 +80,9 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
         parameter FINISH = 7;
 
 //============= Wire assignment ===================
-    assign  end_lcu = (row==4'd15 & col==4'd15); //col, row = 16, 32, 64
-    assign  end_lcu_pip = (row_pip==4'd15 & col_pip==4'd15); //col, row = 16, 32, 64
-    assign  end_img = (!in_en & row_pip==4'd15 & col_pip==4'd15); //lcu_x,y = 8, 4, 2
+    assign  end_lcu = (row==(LCU_SIZE-1) & col==(LCU_SIZE-1)); //col, row = 16, 32, 64
+    assign  end_lcu_pip = (row_pip==(LCU_SIZE-1) & col_pip==(LCU_SIZE-1)); //col, row = 16, 32, 64
+    assign  end_img = (!in_en & row_pip==(LCU_SIZE-1) & col_pip==(LCU_SIZE-1)); //lcu_x,y = 8, 4, 2
 
 //============ Finite State Machine (Designed for dout_nxt)===================
     always @(*) begin
@@ -155,7 +155,7 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
 //============= Combinational ckt ========================
     always @(*)begin
         col_nxt = col + 1;
-        row_in_nxt = (col==4'd15)? row_in+1 : row_in;
+        row_in_nxt = (col==(LCU_SIZE-1))? row_in+1 : row_in;
         row = row_in - 1;
 
         dout_nxt = 0;
@@ -172,8 +172,7 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
         t_ipf_band_pos_nxt = (end_lcu)? ipf_band_pos : t_ipf_band_pos;
         t_ipf_offset_nxt = (end_lcu)? ipf_offset : t_ipf_offset;
 
-
-        for (i = 0 ; i<16; i=i+1)begin
+        for (i = 0 ; i<LCU_SIZE; i=i+1)begin
             window0_nxt[i]=window0[i];
             window1_nxt[i]=window1[i];
         end
@@ -181,11 +180,11 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
         din_buffer_nxt = din;
         if (seq==1'b0)begin
             window0_nxt[col] = din_buffer;
-            seq_nxt = (col==4'd15)? 1'b1:seq;
+            seq_nxt = (col==(LCU_SIZE-1))? 1'b1:seq;
         end
         else if (seq==1'b1)begin
             window1_nxt[col] = din_buffer;
-            seq_nxt = (col==4'd15)? 1'b0:seq;
+            seq_nxt = (col==(LCU_SIZE-1))? 1'b0:seq;
         end
 
 
@@ -211,7 +210,7 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
             end
 
             WO_H:begin
-                if (col_pip==4'd0 | col_pip==4'd15)begin
+                if (col_pip==0 | col_pip==(LCU_SIZE-1))begin
                     dout_nxt = border_pip;
                 end
                 else begin
@@ -220,7 +219,7 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
             end
 
             WO_V:begin
-                if (row_pip==4'd0 | row_pip==4'd15)begin
+                if (row_pip==0 | row_pip==(LCU_SIZE-1))begin
                     dout_nxt = border_pip;
                 end
                 else begin
@@ -291,7 +290,7 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
         else begin
             offset_wo_nxt = 0;
         end
-        
+
         // mid = (a + b) >> 1;     // TODO: without mid?
         // case ({c<a, c==a, c<b, c==b, c<mid[7:0], c==mid[7:0]    })    // TODO: critical path or not??
         //     6'b101010:  offset_wo_nxt = t_ipf_offset[15:12];     // Category 0
@@ -324,7 +323,7 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
 //============ Sequential Circuit =====================
     always @(posedge clk or posedge reset)begin
         if (reset)begin
-            for (i = 0 ; i<16; i=i+1)begin
+            for (i = 0 ; i<LCU_SIZE;i=i+1)begin
                 window0[i]<= 0;
                 window1[i]<= 0;
             end
@@ -364,7 +363,7 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
             state <= IDLE;
         end
         else begin
-            for (i = 0 ; i<16; i=i+1)begin
+            for (i = 0 ; i<LCU_SIZE; i=i+1)begin
                 window0[i]<=window0_nxt[i];
                 window1[i]<=window1_nxt[i];
             end
