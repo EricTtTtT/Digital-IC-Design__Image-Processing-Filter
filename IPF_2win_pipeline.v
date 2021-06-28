@@ -160,7 +160,9 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
         row = (row_in==0)? end_size : row_in - 1;
 
         dout_nxt = 0;
-        dout_addr_nxt = {t_lcu_y_pip, row_pip, t_lcu_x_pip, col_pip};
+        //dout_addr_nxt = {t_lcu_y_pip, row_pip, t_lcu_x_pip, col_pip};
+        dout_addr_nxt = (row_pip<<7) + (t_lcu_y_pip<<11) + (t_lcu_x_pip<<4) + col_pip;
+
         border = (seq==1'b0)? window1[col] : window0[col];
         din_off_nxt = (seq==1'b0)? window1[col] : window0[col];
 
@@ -191,7 +193,7 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
     //========== dout_nxt =================
         case(state)
             IDLE:begin
-                col_nxt = col;
+                col_nxt = 0;
                 row_in_nxt = 0;
             end
 
