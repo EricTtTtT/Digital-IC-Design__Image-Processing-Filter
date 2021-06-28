@@ -149,7 +149,6 @@ always @(*)begin
             out_en = 1;
             nxt_state = state;
         end
-
     endcase
 end
 
@@ -234,21 +233,23 @@ end
 
 //============= operation ========================
 always @(*)begin
-    //============== PO ================
+//============== PO ================
     pix = (seq==1'b0)? window1[t_col] : window0[t_col];
-    pix_band = pix>>3;
-    low_bound = t_ipf_band_pos - 1;
-    up_bound = t_ipf_band_pos + 1;
-    off_po = ((pix_band[1:0])==2'd0)? t_ipf_offset[15:12] :
-             ((pix_band[1:0])==2'd1)? t_ipf_offset[11:8] :
-             ((pix_band[1:0])==2'd2)? t_ipf_offset[7:4] : t_ipf_offset[3:0];
+    pix_band = pix>>3; // 可省
+    // >31 or <0
+    low_bound = (t_ipf_band_pos==5'd1)?  5'd0  : t_ipf_band_pos - 1;
+    up_bound = (t_ipf_band_pos==5'd31)?  5'd31 : t_ipf_band_pos + 1;
+    off_po = ((pix[4:3])==2'd0)? t_ipf_offset[15:12] :
+             ((pix[4:3])==2'd1)? t_ipf_offset[11:8] :
+             ((pix[4:3])==2'd2)? t_ipf_offset[7:4] : t_ipf_offset[3:0];
     din_po_add = $signed(pix) + $signed(off_po);
-    //判斷是否超過255或小於0
-    din_po_temp = (pix[7] & !din_po_add[8])? 8'd255 : (!pix[7] & din_po_add[8])? 8'd0 : din_po_add[7:0]; 
-    //因為bound可能overflow，故用or
+    // >255 or <0 ?????????????????????????????????????????????
+    // use 10 bit din_po_add?
+    //din_po_temp = (pix[7] & !din_po_add[8])? 8'd255 : (!pix[7] & din_po_add[8])? 8'd0 : din_po_add[7:0]; 
+    din_po_temp = din_po_add[7:0];
     din_po = (pix_band == low_bound | pix_band == up_bound | pix_band == t_ipf_band_pos)? pix : din_po_temp; 
 
-    //============== WO ================
+//============== WO ================
     posi_a = t_col-1;
     posi_c = t_col;
     posi_b = t_col+1;
@@ -280,8 +281,10 @@ always @(*)begin
         off_wo = 0;
     end
     din_wo_add = $signed(c)+$signed(off_wo);
-    //判斷是否超過255或小於0
-    din_wo = (c[7] & !din_wo_add[8])? 8'd255 : (!c[7] & din_wo_add[8])? 8'd0 : din_wo_add[7:0]; 
+    // >255 or <0 ?????????????????????????????????????????????
+    // use 10 bit din_po_add?
+    //din_wo = (c[7] & !din_wo_add[8])? 8'd255 : (!c[7] & din_wo_add[8])? 8'd0 : din_wo_add[7:0]; 
+    din_wo = din_wo_add[7:0]; 
 end
 
 
