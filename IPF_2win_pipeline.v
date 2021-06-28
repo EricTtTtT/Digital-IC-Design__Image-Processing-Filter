@@ -275,24 +275,6 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
             end
         endcase
 
-
-        mid = (a+b)>>1;
-        if (c<a & c<b)begin //Category 0
-            offset_wo_nxt = t_ipf_offset[15:12];
-        end
-        else if (c < mid & (c>=a | c>=b))begin //Category 1
-            offset_wo_nxt = t_ipf_offset[11:8];
-        end
-        else if (c > mid & (c<=a | c<=b))begin //Category 2
-            offset_wo_nxt = t_ipf_offset[7:4];
-        end
-        else if (c > a & c>b)begin //Category 3
-            offset_wo_nxt = t_ipf_offset[3:0];
-        end
-        else begin
-            offset_wo_nxt = 0;
-        end
-
         mid = (a + b) >> 1;     // TODO: without mid?
         case ({c<a, c==a, c<b, c==b, c<mid[7:0], c==mid[7:0]    })    // TODO: critical path or not??
             6'b101010:  offset_wo_nxt = t_ipf_offset[15:12];     // Category 0
@@ -315,7 +297,7 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
             6'b010100:  offset_wo_nxt = t_ipf_offset[7:4];
             default:    offset_wo_nxt = 0;
         endcase
-        
+
         //>255 or <0
         din_wo_add = $signed({1'b0,c_pip})+$signed(offset_wo);
         din_wo = din_wo_add[7:0]; 
