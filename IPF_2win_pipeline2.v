@@ -285,19 +285,21 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
         if (c<a & c<b)begin //Category 0
             offset_wo_nxt = t_ipf_offset_pip1[15:12];
         end
-        else if (c < mid[8:1] & (c>=a | c>=b))begin //Category 1
-            offset_wo_nxt = t_ipf_offset_pip1[11:8];
-        end
-        else if (c > mid[8:1] & (c<=a | c<=b))begin //Category 2
-            offset_wo_nxt = t_ipf_offset_pip1[7:4];
-        end
-        else if (c > a & c>b)begin //Category 3
+        else if (c> a & c>b) begin //Category 3
             offset_wo_nxt = t_ipf_offset_pip1[3:0];
         end
         else begin
-            offset_wo_nxt = 0;
+            if (c < mid[8:1])begin //Category 1
+                offset_wo_nxt = t_ipf_offset_pip1[11:8];
+            end
+            else if (c > mid[8:1])begin //Category 2
+                offset_wo_nxt = t_ipf_offset_pip1[7:4];
+            end
+            else begin
+                offset_wo_nxt = 0;
+            end
         end
-
+        
         //>255 or <0
         din_wo_add = $signed({1'b0,c_pip1})+$signed(offset_wo);
         din_wo = din_wo_add[7:0]; 
