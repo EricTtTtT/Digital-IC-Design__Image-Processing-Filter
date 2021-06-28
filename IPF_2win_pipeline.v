@@ -20,8 +20,8 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
 
 //============ reg/wire declaration ===================
     integer i ;
-    parameter LCU_SIZE = 15;    // TODO: parameterized
-    parameter logSIZE = 4;
+    parameter LCU_SIZE = 16-1;    //15,31,63
+    parameter logSIZE = 4-1; //16=4bit, 31=6bit, 64=8bit
 
     wire [5:0] end_size;
     assign end_size = (lcu_size==2'b00)? 6'd15 : (lcu_size==2'b00)? 6'd31 : 6'd63;
@@ -37,9 +37,9 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
         reg [7:0] din_off, din_off_nxt;
 
     //======== control signals ========
-        reg [logSIZE-1:0] col, col_nxt, col_pip; //col length = 16, 32, 64
-        reg [logSIZE-1:0] row_in, row_in_nxt,row, row_pip;
-        reg [3:0] a_col, b_col;
+        reg [logSIZE:0] col, col_nxt, col_pip; //col length = 16, 32, 64
+        reg [logSIZE:0] row_in, row_in_nxt,row, row_pip;
+        reg [logSIZE:0] a_col, b_col;
         reg seq, seq_nxt;
         reg finish_nxt;
 
@@ -155,8 +155,8 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
 
 //============= Combinational ckt ========================
     always @(*)begin
-        col_nxt = col + 1;
-        row_in_nxt = (col==end_size)? row_in+1 : row_in;
+        col_nxt = (col==end_size)? 0 : col + 1;
+        row_in_nxt = (col==end_size)? (row_in==end_size)? 0 : row_in+1 : row_in;
         row = row_in - 1;
 
         dout_nxt = 0;
@@ -251,8 +251,8 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
         din_po = (pix_band_pip == low_bound | pix_band_pip == up_bound | pix_band_pip == t_ipf_band_pos_pip)? pix_pip : din_po_temp; 
 
         //============== WO ================
-        a_col = col-1;
-        b_col = col+1;
+        a_col = (col==0)? end_size : col-1;
+        b_col = (col==end_size)? 0 : col+1;
         case ({t_ipf_wo_class, seq})
             2'b00: begin
                 a = window1[a_col];
