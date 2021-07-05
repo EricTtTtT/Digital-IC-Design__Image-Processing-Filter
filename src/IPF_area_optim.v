@@ -1,5 +1,9 @@
-module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_offset, lcu_x, lcu_y, lcu_size, busy, out_en, dout, dout_addr, finish);
-//===========IO====================
+module IPF (
+    clk, reset,
+    in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_offset,
+    lcu_x, lcu_y, lcu_size, busy, out_en, dout, dout_addr, finish
+);
+//=========== IO ====================
     input   clk;
     input   reset;
     input   in_en;
@@ -16,12 +20,11 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
     output reg out_en;
     output reg [7:0] dout;
     output reg [13:0] dout_addr;
-//===========IO====================
 
 //============ reg/wire declaration ===================
     integer i ;
-    parameter WIN_SIZE = 64-1;    //15,31,63
-    parameter logSIZE = 6-1; //16=4bit, 31=5bit, 64=6bit
+    parameter WIN_SIZE = 64-1;  //15,31,63
+    parameter logSIZE = 6-1;    //16=4bit, 31=5bit, 64=6bit
 
     wire [5:0] end_size;
     assign end_size = (lcu_size==2'b00)? 6'd15 : (lcu_size==2'b01)? 6'd31 : 6'd63;
@@ -93,7 +96,7 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
 
     assign window0_select = window0[col];
     assign window1_select = window1[col];
-//============ Finite State Machine (Designed for dout_nxt)===================
+//============ Finite State Machine ===================
     always @(*) begin
         // generate duplicate case output
         case(ipf_type)
@@ -164,8 +167,8 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
         endcase
     end
 
-//============= Combinational ckt ========================
-    always @(*)begin
+//============= Combinational Circuit ========================
+    always @(*) begin
         col_nxt = state==WAIT? 0 : (col_end)? 0 : col + 1;
         row_in_nxt = state==WAIT? 0 : (col_end)? (row_in==end_size)? 0 : row_in+1 : row_in;
         row = (row_in==0)? end_size : row_in - 1;
@@ -186,16 +189,16 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
         t_ipf_band_pos_nxt = (end_lcu)? ipf_band_pos : t_ipf_band_pos;
         t_ipf_offset_nxt = (end_lcu)? ipf_offset : t_ipf_offset;
 
-        for (i = 0 ; i<=WIN_SIZE; i=i+1)begin
+        for (i = 0 ; i<=WIN_SIZE; i=i+1) begin
             window0_nxt[i]=window0[i];
             window1_nxt[i]=window1[i];
         end
 
-        if (seq==1'b0)begin
+        if (seq==1'b0) begin
             window0_nxt[col] = din_buffer;
             seq_nxt = (col_end)? 1'b1:seq;
         end
-        else if (seq==1'b1)begin
+        else if (seq==1'b1) begin
             window1_nxt[col] = din_buffer;
             seq_nxt = (col_end)? 1'b0:seq;
         end
@@ -211,7 +214,7 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
                 dout_nxt = din_po;
             end
             WO_H:begin
-                if (col_pip2==6'd0 | col_pip2_end)begin
+                if (col_pip2==6'd0 | col_pip2_end) begin
                     dout_nxt = border_pip2;
                 end
                 else begin
@@ -219,7 +222,7 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
                 end
             end
             WO_V:begin
-                if (row_pip2==6'd0 | row_pip2_end)begin
+                if (row_pip2==6'd0 | row_pip2_end) begin
                     dout_nxt = border_pip2;
                 end
                 else begin
@@ -231,7 +234,7 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
     end
 
 //============= operation ========================
-    always @(*)begin
+    always @(*) begin
     //============== PO ================
         pix = (seq==1'b0)? window1_select : window0_select;
         pix_band = pix_pip1>>3;
@@ -272,17 +275,17 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
         endcase
 
         mid = (a+b);
-        if (c<a & c<b)begin //Category 0
+        if (c<a & c<b) begin //Category 0
             offset_wo_nxt = t_ipf_offset_pip1[15:12];
         end
         else if (c> a & c>b) begin //Category 3
             offset_wo_nxt = t_ipf_offset_pip1[3:0];
         end
         else begin
-            if (c < mid[8:1])begin //Category 1
+            if (c < mid[8:1]) begin //Category 1
                 offset_wo_nxt = t_ipf_offset_pip1[11:8];
             end
-            else if (c > mid[8:1])begin //Category 2
+            else if (c > mid[8:1]) begin //Category 2
                 offset_wo_nxt = t_ipf_offset_pip1[7:4];
             end
             else begin
@@ -296,9 +299,9 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
     end
 
 //============ Sequential Circuit =====================
-    always @(posedge clk or posedge reset)begin
-        if (reset)begin
-            for (i = 0 ; i<=WIN_SIZE; i=i+1)begin
+    always @(posedge clk or posedge reset) begin
+        if (reset) begin
+            for (i = 0 ; i<=WIN_SIZE; i=i+1) begin
                 window0[i]<= 0;
                 window1[i]<= 0;
             end
@@ -343,7 +346,7 @@ module IPF ( clk, reset, in_en, din, ipf_type, ipf_band_pos, ipf_wo_class, ipf_o
             state <= IDLE;
         end
         else begin
-            for (i = 0 ; i<=WIN_SIZE; i=i+1)begin
+            for (i = 0 ; i<=WIN_SIZE; i=i+1) begin
                 window0[i]<=window0_nxt[i];
                 window1[i]<=window1_nxt[i];
             end
