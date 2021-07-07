@@ -4,30 +4,34 @@ module IPF (
     lcu_x, lcu_y, lcu_size, busy, out_en, dout, dout_addr, finish
 );
 //=========== IO ====================
-    input   clk;
-    input   reset;
-    input   in_en;
-    input   [7:0]  din;
-    input   [1:0]  ipf_type;
-    input   [4:0]  ipf_band_pos;
-    input          ipf_wo_class;
-    input   [15:0] ipf_offset;
-    input   [2:0]  lcu_x;
-    input   [2:0]  lcu_y;
-    input   [1:0]  lcu_size;
-    output reg busy;
-    output reg finish;
-    output reg out_en;
-    output reg [7:0] dout;
-    output reg [13:0] dout_addr;
+    input               clk;
+    input               reset;
+    input               in_en;
+    input [7:0]         din;
+    input [1:0]         ipf_type;
+    input [4:0]         ipf_band_pos;
+    input               ipf_wo_class;
+    input [15:0]        ipf_offset;
+    input [2:0]         lcu_x;
+    input [2:0]         lcu_y;
+    input [1:0]         lcu_size;
+    output reg          busy;
+    output reg          finish;
+    output reg          out_en;
+    output reg [7:0]    dout;
+    output reg [13:0]   dout_addr;
 
 //============ reg/wire declaration ===================
-    integer i ;
-    parameter WIN_SIZE = 64-1;  //15,31,63
-    parameter logSIZE = 6-1;    //16=4bit, 31=5bit, 64=6bit
+    integer i;
+    parameter WIN_SIZE = 64-1;  // 15,31,63
+    parameter logSIZE = 6-1;    // 16=4bit, 31=5bit, 64=6bit
 
     wire [5:0] end_size;
-    assign end_size = (lcu_size==2'b00)? 6'd15 : (lcu_size==2'b01)? 6'd31 : 6'd63;
+    assign end_size = (lcu_size==2'b00)?
+                            6'd15
+                        :   (lcu_size==2'b01)?
+                                6'd31
+                            :   6'd63;
 
     //======== data I/O ===============
         reg [7:0] din_po, din_wo, dout_nxt, din_po_temp;
@@ -86,16 +90,16 @@ module IPF (
         parameter FINISH = 3'd7;
 
 //============= Wire assignment ===================
-    assign  col_end = col==end_size;
-    assign  row_pip2_end = row_pip2==end_size;
-    assign  col_pip2_end = col_pip2==end_size;
+    assign col_end = col==end_size;
+    assign row_pip2_end = row_pip2==end_size;
+    assign col_pip2_end = col_pip2==end_size;
 
-    assign  end_lcu = (row==end_size & col_end); //col, row = 16, 32, 64
-    assign  end_lcu_pip2 = (row_pip2_end & col_pip2_end); //col, row = 16, 32, 64
-    assign  end_img = (!in_en & row_pip2_end & col_pip2_end); //lcu_x,y = 8, 4, 2
-
+    assign end_lcu = row==end_size & col_end;  //col, row = 16, 32, 64
+    assign end_lcu_pip2 = row_pip2_end & col_pip2_end;  //col, row = 16, 32, 64
+    assign end_img = !in_en & row_pip2_end & col_pip2_end;  //lcu_x,y = 8, 4, 2
     assign window0_select = window0[col];
     assign window1_select = window1[col];
+
 //============ Finite State Machine ===================
     always @(*) begin
         // generate duplicate case output
@@ -169,13 +173,13 @@ module IPF (
 
 //============= Combinational Circuit ========================
     always @(*) begin
-        col_nxt = state==WAIT? 0 : (col_end)? 0 : col + 1;
-        row_in_nxt = state==WAIT? 0 : (col_end)? (row_in==end_size)? 0 : row_in+1 : row_in;
+        col_nxt = state==WAIT? 0 : col_end? 0 : col + 1;
+        row_in_nxt = state==WAIT? 0 : col_end? row_in==end_size? 0 : row_in+1 : row_in;
         row = (row_in==0)? end_size : row_in - 1;
         case (lcu_size)
-            2'd0: dout_addr_nxt = {t_lcu_y_pip2[2:0], row_pip2[3:0], t_lcu_x_pip2[2:0], col_pip2[3:0]};
-            2'd1: dout_addr_nxt = {t_lcu_y_pip2[1:0], row_pip2[4:0], t_lcu_x_pip2[1:0], col_pip2[4:0]};
-            default: dout_addr_nxt = {t_lcu_y_pip2[0], row_pip2[5:0], t_lcu_x_pip2[ 0 ], col_pip2[5:0]};
+            2'd0: dout_addr_nxt =  {t_lcu_y_pip2[2:0], row_pip2[3:0], t_lcu_x_pip2[2:0], col_pip2[3:0]};
+            2'd1: dout_addr_nxt =  {t_lcu_y_pip2[1:0], row_pip2[4:0], t_lcu_x_pip2[1:0], col_pip2[4:0]};
+            default: dout_addr_nxt = {t_lcu_y_pip2[0], row_pip2[5:0],   t_lcu_x_pip2[0], col_pip2[5:0]};
         endcase
 
         border = (seq==1'b0)? window1_select : window0_select;
@@ -190,8 +194,8 @@ module IPF (
         t_ipf_offset_nxt = (end_lcu)? ipf_offset : t_ipf_offset;
 
         for (i = 0 ; i<=WIN_SIZE; i=i+1) begin
-            window0_nxt[i]=window0[i];
-            window1_nxt[i]=window1[i];
+            window0_nxt[i] = window0[i];
+            window1_nxt[i] = window1[i];
         end
 
         if (seq==1'b0) begin
